@@ -4,4 +4,13 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-tokio = "1.47.1"
+axum = "0.8.4"
+chrono = "0.4.42"
+dashmap = "6.1.0"
+serde = { version = "1.0.225", features = ["derive"] }
+serde_json = "1.0.145"
+tokio = { version = "1.47.1", features = ["full"] }
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
+uuid = { version = "1.18.1", features = ["v4"] }
+rusqlite = { version = "0.37.0", features = ["bundled"] }
