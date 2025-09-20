@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>选择套餐</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .plan-card {
+            transition: transform 0.2s;
+            cursor: pointer;
+        }
+        .plan-card:hover {
+            transform: translateY(-5px);
+        }
+    </style>
+</head>
+<body>
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="text-center mb-5">
+                    <h1 class="display-4 fw-bold mb-3">选择您的套餐</h1>
+                    <p class="lead text-muted">请选择以下套餐之一，您将被重定向到爱发电完成支付</p>
+                </div>
+                
+                <div class="row" id="plans-container">
+                    <!-- 套餐将通过JavaScript动态加载 -->
+                    <div class="text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">加载中...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 获取套餐数据
+        async function fetchPlans() {
+            try {
+                const response = await fetch('/api/get_plans');
+                const plans = await response.json();
+                
+                const container = document.getElementById('plans-container');
+                container.innerHTML = '';
+                
+                plans.forEach(plan => {
+                    const priceInYuan = (plan.price / 100).toFixed(2);
+                    
+                    const planCard = document.createElement('div');
+                    planCard.className = 'col-md-6 mb-4';
+                    planCard.innerHTML = `
+                        <div class="card plan-card h-100 shadow-sm" onclick="selectPlan(${plan.price})">
+                            <div class="card-body d-flex flex-column">
+                                <h5 class="card-title">${plan.name}</h5>
+                                <p class="card-text flex-grow-1">${plan.description}</p>
+                                <div class="mt-auto">
+                                    <h4 class="text-primary mb-0">¥${priceInYuan}</h4>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    container.appendChild(planCard);
+                });
+            } catch (error) {
+                console.error('获取套餐失败:', error);
+                document.getElementById('plans-container').innerHTML = 
+                    '<div class="alert alert-danger">加载套餐失败，请刷新页面重试</div>';
+            }
+        }
+        
+        // 选择套餐
+
+        function popitup(url,windowName) {
+            newwindow=window.open(url,windowName,'height=500,width=500');
+            if (window.focus) {newwindow.focus()}
+            return false;
+            }
+
+
+        async function selectPlan(price) {
+            try {
+                // 创建订单
+                const response = await fetch('/api/create_order', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ price: price / 100 })
+                });
+                
+                const order = await response.json();
+                
+                // 在新窗口中打开爱发电支付页面
+                const afdUrl = `https://ifdian.net/order/create?user_id=25597eb8ed1111ea8d0352540025c377&custom_order_id=${order.uuid}&custom_price=${(price / 100).toFixed(2)}`;
+                popitup(afdUrl);
+                
+                // 同时跳转到检查页
+                window.location.href = `check.html?orderId=${order.uuid}`
+            } catch (error) {   
+                console.error('创建订单失败:', error);
+                alert('创建订单失败，请稍后重试');
+            }
+        }
+        
+        // 页面加载时获取套餐
+        document.addEventListener('DOMContentLoaded', function() {
+            fetchPlans();
+        });
+    </script>
+</body>
+</html>

@@ -1,11 +1,10 @@
-use std::cell::OnceCell;
 use std::fmt;
 use uuid::Uuid;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::{cdk::{self, CDK}, plan::{get_plan_by_price, Plan}};
+use crate::{cdk::CDK, plan::{get_plan_by_price, Plan}};
 
 #[derive(Debug, Clone, Copy, Serialize, PartialEq)]
 pub enum Status {

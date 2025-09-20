@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CDK兑换码</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .status-icon {
+            font-size: 4rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card shadow">
+                    <div class="card-body text-center">
+                        <div id="loading-content">
+                            <div class="spinner-border status-icon text-primary" role="status">
+                                <span class="visually-hidden">加载中...</span>
+                            </div>
+                            <h2 class="mt-3">正在获取CDK</h2>
+                            <p class="text-muted">请稍候...</p>
+                        </div>
+                        
+                        <div id="cdk-content" class="d-none">
+                            <div class="status-icon text-success mb-3">
+                                <i class="fas fa-check-circle"></i>
+                            </div>
+                            <h2 class="text-success">支付成功！</h2>
+                            <p class="mt-3">您的CDK如下，请妥善保管：</p>
+                            <div class="card bg-light mb-3">
+                                <div class="card-body d-flex justify-content-between align-items-center">
+                                    <code id="cdk-code" class="fs-5"></code>
+                                    <button id="copy-btn" class="btn btn-outline-primary btn-sm" onclick="copyCDK()">
+                                        <i class="fas fa-copy"></i> 复制
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="plan-info" class="alert alert-info text-start"></div>
+                            <div class="mt-4">
+                                <a href="order.html" class="btn btn-primary">返回下单页</a>
+                            </div>
+                        </div>
+                        
+                        <div id="error-content" class="d-none">
+                            <div class="status-icon text-danger mb-3">
+                                <i class="fas fa-times-circle"></i>
+                            </div>
+                            <h2 class="text-danger">获取失败</h2>
+                            <p class="mt-3">很抱歉，获取CDK时出现错误。</p>
+                            <div class="alert alert-warning">
+                                <i class="fas fa-exclamation-triangle"></i> 请联系客服小祥处理此问题<br><a href="order.html">返回下单页</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 获取URL参数
+        function getUrlParameter(name) {
+            name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
+            var regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
+            var results = regex.exec(window.location.href);
+            return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
+        }
+        
+        // 获取并显示CDK
+        async function loadCDK(orderId) {
+            try {
+                // 获取CDK
+                const cdkResponse = await fetch(`/api/get_order_cdk/${orderId}`);
+                const cdk = await cdkResponse.text();
+                
+                if (cdk) {
+                    // 显示CDK
+                    document.getElementById('loading-content').classList.add('d-none');
+                    document.getElementById('cdk-content').classList.remove('d-none');
+                    document.getElementById('cdk-code').textContent = cdk;
+                    
+                    // 显示套餐信息
+                    document.getElementById('plan-info').innerHTML = `
+                        <h5>订单信息</h5>
+                        <p>订单号: ${orderId}</p>
+                        <p>CDK: ${cdk}</p>
+                        <p class="mb-0">请妥善保管您的CDK，可在游戏中兑换相应物品。</p>
+                    `;
+                } else {
+                    // 显示错误
+                    document.getElementById('loading-content').classList.add('d-none');
+                    document.getElementById('error-content').classList.remove('d-none');
+                }
+            } catch (error) {
+                console.error('获取CDK失败:', error);
+                // 显示错误
+                document.getElementById('loading-content').classList.add('d-none');
+                document.getElementById('error-content').classList.remove('d-none');
+            }
+        }
+        
+        // 复制CDK
+        function copyCDK() {
+            const cdk = document.getElementById('cdk-code').textContent;
+            navigator.clipboard.writeText(cdk).then(() => {
+                const btn = document.getElementById('copy-btn');
+                const originalText = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-check"></i> 已复制';
+                setTimeout(() => {
+                    btn.innerHTML = originalText;
+                }, 2000);
+            });
+        }
+        
+        // 页面加载时获取CDK
+        document.addEventListener('DOMContentLoaded', function() {
+            const orderId = getUrlParameter('orderId');
+            if (orderId) {
+                loadCDK(orderId);
+            } else {
+                // 显示错误
+                document.getElementById('loading-content').classList.add('d-none');
+                document.getElementById('error-content').classList.remove('d-none');
+            }
+        });
+    </script>
+</body>
+</html>

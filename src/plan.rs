@@ -12,7 +12,7 @@ pub struct Plan {
 }
 
 pub static PLANS: LazyLock<DashMap<i32, Plan>> = LazyLock::new(|| {
-    let mut map = DashMap::new();
+    let map = DashMap::new();
     
     // 读取并解析 TOML 文件
     let content = std::fs::read_to_string("plans.toml").expect("Failed to read plans.toml");

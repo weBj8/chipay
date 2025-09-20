@@ -7,8 +7,9 @@ use axum::{
     extract::Path,
     http::StatusCode,
     response::{IntoResponse, Response},
-    routing::{self, get, post},
+    routing::{get, post},
 };
+use tower_http::services::ServeFile;
 use serde::{Deserialize, Serialize};
 use tracing::{info, level_filters::LevelFilter, warn};
 use tracing_subscriber::util::SubscriberInitExt;
@@ -164,7 +165,14 @@ async fn get_order_status(Path(order_id): Path<String>) -> String {
     if let Some(order) = ORDER_MAP.get(&order_id) {
         let order_str = order.status.to_string();
         if order.status == order::Status::Completed {
-            ORDER_MAP.remove(&order_id);
+            info!("READY TO REMOVE");
+            let order_id_clone = order_id.clone();
+            tokio::task::spawn_blocking(move || {
+                let _ = tokio::time::sleep(tokio::time::Duration::from_secs(60));
+                ORDER_MAP.remove(&order_id_clone);
+                info!("order removed");
+            });
+            info!("order removed")
         }
 
         order_str
@@ -174,19 +182,11 @@ async fn get_order_status(Path(order_id): Path<String>) -> String {
 }
 
 async fn get_order_cdk(Path(order_id): Path<String>) -> String {
-    let order = ORDER_MAP.get(&order_id);
-
-    if order.is_none() {
-        return "".to_string();
+    match dao::query_cdk_from_uuid(order_id).await {
+        Ok(Some(cdk)) => cdk.to_string(),
+        Ok(None) => "".to_string(),
+        Err(_) => "".to_string(),
     }
-
-    let order = order.unwrap();
-
-    if order.status != order::Status::Completed || order.cdk.is_none() {
-        return "".to_string();
-    }
-
-    order.cdk.as_ref().unwrap().to_string()
 }
 
 async fn use_cdk(request: Json<CdkUseRequest>) -> Result<String, AppError> {
@@ -213,9 +213,16 @@ async fn main() {
 
     dao::init_db().await.expect("Failed to initialize database");
 
+    let serve_order_html = ServeFile::new("./order.html");
+    let serve_check_html = ServeFile::new("./check.html");
+    let serve_cdk_html = ServeFile::new("./get_cdk.html");
+
     let app = Router::new()
         // `GET /` goes to `root`
         .route("/", get(async || "sb"))
+        .route_service("/order.html", serve_order_html)
+        .route_service("/check.html", serve_check_html)
+        .route_service("/get_cdk.html", serve_cdk_html)
         .route("/api/webhook", post(handle_webhook))
         .route("/api/create_order", post(create_order))
         .route("/api/get_order_status/{order_uuid}", get(get_order_status))

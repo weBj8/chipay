@@ -2,7 +2,6 @@ use md5;
 use rand;
 use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
-use tokio_rusqlite::types::Null;
 
 use crate::plan::Plan;
 

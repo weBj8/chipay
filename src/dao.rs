@@ -1,7 +1,5 @@
 use std::sync::OnceLock;
-use tokio_rusqlite::types::Null;
 use tokio_rusqlite::{Connection, params};
-use tracing::{error, info};
 
 static CONN: OnceLock<Connection> = OnceLock::new();
 use anyhow::Result;
@@ -9,7 +7,6 @@ use anyhow::anyhow;
 
 use crate::cdk::CDK;
 use crate::order::Order;
-use crate::plan;
 
 pub async fn init_db() -> Result<()> {
     // Open the connection asynchronously first
@@ -86,6 +83,37 @@ pub async fn insert_cdk(uuid: String, cdk: CDK) -> Result<()> {
     .await?;
 
     Ok(())
+}
+
+pub async fn query_cdk_from_uuid(uuid: String) -> Result<Option<CDK>> {
+    let conn = get_conn()?;
+    
+    let result = conn
+        .call(move |conn| {
+            let mut stmt = conn.prepare("SELECT cdk, plan FROM `cdk` WHERE `uuid` = ?1")?;
+            let mut rows = stmt.query(params![uuid])?;
+            
+            if let Some(row) = rows.next()? {
+                let cdk_str: String = row.get(0)?;
+                let plan_id: i32 = row.get(1)?;
+                
+                // Get the plan from the global PLANS map
+                let plan = crate::plan::get_plan_by_price(plan_id);
+                
+                let cdk = CDK {
+                    cdk: cdk_str,
+                    used_by: None, // We don't fetch this field as it's not needed for this use case
+                    plan,
+                };
+                
+                Ok(Some(cdk))
+            } else {
+                Ok(None)
+            }
+        })
+        .await?;
+        
+    Ok(result)
 }
 
 pub async fn use_cdk(cdk: String, user: String) -> Result<i32> {
