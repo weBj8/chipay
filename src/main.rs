@@ -1,20 +1,19 @@
+mod cdk;
 mod dao;
 mod order;
 use axum::{
     Json, Router,
-    extract::{Path, State},
+    extract::Path,
     http::StatusCode,
-    routing::{any, get, post},
+    response::{IntoResponse, Response},
+    routing::{self, get, post},
 };
 use serde::{Deserialize, Serialize};
-use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
-use tracing::Subscriber;
-use tracing::{error, info, level_filters::LevelFilter};
+use tracing::{info, level_filters::LevelFilter};
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt};
 
 use dashmap::DashMap;
-use uuid::Uuid;
 
 use std::sync::LazyLock;
 
@@ -77,13 +76,42 @@ impl WebhookResponse {
     }
 }
 
+#[derive(Deserialize, Debug)]
+struct CdkUseRequest {
+    pub cdk: String,
+    pub user: String,
+}
+
+// Make our own error that wraps `anyhow::Error`.
+struct AppError(anyhow::Error);
+
+// Tell axum how to convert `AppError` into a response.
+impl IntoResponse for AppError {
+    fn into_response(self) -> Response {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Something went wrong: {}", self.0),
+        )
+            .into_response()
+    }
+}
+
+impl<E> From<E> for AppError
+where
+    E: Into<anyhow::Error>,
+{
+    fn from(err: E) -> Self {
+        Self(err.into())
+    }
+}
+
 const DEFAULT_LOG_LEVEL: LevelFilter = if cfg!(debug_assertions) {
     LevelFilter::DEBUG
 } else {
     LevelFilter::INFO
 };
 
-async fn handle_webhook(request: Json<WebhookRequest>) -> Json<WebhookResponse> {
+async fn handle_webhook(request: Json<WebhookRequest>) -> Result<Json<WebhookResponse>, AppError> {
     let afd_id = &request.data.order.out_trade_no;
     let uuid = request
         .data
@@ -97,36 +125,58 @@ async fn handle_webhook(request: Json<WebhookRequest>) -> Json<WebhookResponse> 
 
     if let Some(mut order) = ORDER_MAP.get_mut(uuid) {
         order.status = order::Status::Completed;
+        info!("order {} with afd id {} completed", uuid, afd_id);
+        dao::insert_order(order.to_owned()).await?;
+        dao::insert_cdk(order.uuid.to_string(), cdk::CDK::new()).await?;
+        order.cdk = Some(cdk::CDK::new());
     }
 
     let response = WebhookResponse::new(200);
     info!("{:?}", response);
 
-    response.into()
+    Ok(response.into())
 }
 
 async fn create_order(request: Json<order::OrderRequest>) -> Json<Order> {
-    let order = Order::new(request.price);
+    let order = Order::new(((request.price * 100.0).round()) as i32);
 
-    ORDER_MAP.insert(order.uuid.to_string(), order.clone()); 
+    ORDER_MAP.insert(order.uuid.to_string(), order.clone());
 
     order.into()
 }
 
 async fn get_order_status(Path(order_id): Path<String>) -> String {
     if let Some(order) = ORDER_MAP.get(&order_id) {
-        if order.status == order::Status::Pending {
-            "pending".to_string()
-        } else if order.status == order::Status::Completed {
+        let order_str = order.status.to_string();
+        if order.status == order::Status::Completed {
             ORDER_MAP.remove(&order_id);
-            
-            "completed".to_string()
-        } else {
-            "failed".to_string()
         }
+
+        order_str
     } else {
-        "not found".to_string()
+        order::Status::NotFound.to_string()
     }
+}
+
+async fn get_order_cdk(Path(order_id): Path<String>) -> String {
+    let order = ORDER_MAP.get(&order_id);
+
+    if order.is_none() {
+        return "".to_string();
+    }
+
+    let order = order.unwrap();
+
+    if order.status != order::Status::Completed || order.cdk.is_none() {
+        return "".to_string();
+    }
+
+    order.cdk.as_ref().unwrap().to_string()
+}
+
+async fn use_cdk(request: Json<CdkUseRequest>) -> Result<StatusCode, AppError> {
+    dao::use_cdk(request.cdk.to_owned(), request.user.to_owned()).await?;
+    Ok(StatusCode::OK)
 }
 
 #[tokio::main]
@@ -148,7 +198,9 @@ async fn main() {
         .route("/", get(async || "sb"))
         .route("/api/webhook", post(handle_webhook))
         .route("/api/create_order", post(create_order))
-        .route("/api/get_order_status/{order_uuid}", get(get_order_status));
+        .route("/api/get_order_status/{order_uuid}", get(get_order_status))
+        .route("/api/get_order_cdk/{order_uuid}", get(get_order_cdk))
+        .route("/api/use_cdk", post(use_cdk));
 
     // run our app with hyper, listening globally on port 3000
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
