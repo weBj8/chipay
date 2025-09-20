@@ -1,3 +1,4 @@
+mod dao;
 mod order;
 use axum::{
     Json, Router,
@@ -104,10 +105,10 @@ async fn handle_webhook(request: Json<WebhookRequest>) -> Json<WebhookResponse> 
     response.into()
 }
 
-async fn create_order() -> Json<Order> {
-    let order = Order::new();
+async fn create_order(request: Json<order::OrderRequest>) -> Json<Order> {
+    let order = Order::new(request.price);
 
-    ORDER_MAP.insert(order.uuid.to_string(), order.clone());
+    ORDER_MAP.insert(order.uuid.to_string(), order.clone()); 
 
     order.into()
 }
@@ -118,7 +119,7 @@ async fn get_order_status(Path(order_id): Path<String>) -> String {
             "pending".to_string()
         } else if order.status == order::Status::Completed {
             ORDER_MAP.remove(&order_id);
-
+            
             "completed".to_string()
         } else {
             "failed".to_string()
@@ -140,11 +141,13 @@ async fn main() {
         .with(tracing_subscriber::fmt::layer().without_time())
         .init();
 
+    dao::init_db().await.expect("Failed to initialize database");
+
     let app = Router::new()
         // `GET /` goes to `root`
         .route("/", get(async || "sb"))
-        .route("/api/webhook", any(handle_webhook))
-        .route("/api/create_order", get(create_order))
+        .route("/api/webhook", post(handle_webhook))
+        .route("/api/create_order", post(create_order))
         .route("/api/get_order_status/{order_uuid}", get(get_order_status));
 
     // run our app with hyper, listening globally on port 3000
