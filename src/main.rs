@@ -9,7 +9,7 @@ use axum::{
     routing::{self, get, post},
 };
 use serde::{Deserialize, Serialize};
-use tracing::{info, level_filters::LevelFilter};
+use tracing::{info, level_filters::LevelFilter, warn};
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt};
 
@@ -113,6 +113,7 @@ const DEFAULT_LOG_LEVEL: LevelFilter = if cfg!(debug_assertions) {
 
 async fn handle_webhook(request: Json<WebhookRequest>) -> Result<Json<WebhookResponse>, AppError> {
     let afd_id = &request.data.order.out_trade_no;
+    let price: i32 = request.data.order.total_amount.replace(".", "").parse()?;
     let uuid = request
         .data
         .order
@@ -123,16 +124,22 @@ async fn handle_webhook(request: Json<WebhookRequest>) -> Result<Json<WebhookRes
     info!("webhook recived");
     info!("{:?}", request);
 
-    if let Some(mut order) = ORDER_MAP.get_mut(uuid) {
-        order.status = order::Status::Completed;
-        info!("order {} with afd id {} completed", uuid, afd_id);
-        dao::insert_order(order.to_owned()).await?;
-        dao::insert_cdk(order.uuid.to_string(), cdk::CDK::new()).await?;
-        order.cdk = Some(cdk::CDK::new());
-    }
-
     let response = WebhookResponse::new(200);
     info!("{:?}", response);
+
+    if let Some(mut order) = ORDER_MAP.get_mut(uuid) {
+        if order.price != price {
+            order.status = order::Status::Failed;
+            warn!("order {} with afd id {} failed due to diffrent price", uuid, afd_id);
+            dao::insert_order(order.to_owned()).await?;
+            return Ok(response.into());
+        }
+        order.status = order::Status::Completed;
+        order.cdk = Some(cdk::CDK::new());
+        info!("order {} with afd id {} completed", uuid, afd_id);
+        dao::insert_order(order.to_owned()).await?;
+        dao::insert_cdk(order.uuid.to_string(), order.cdk.clone().unwrap()).await?;
+    }
 
     Ok(response.into())
 }

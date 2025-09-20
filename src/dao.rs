@@ -1,6 +1,6 @@
 use std::sync::OnceLock;
-
 use tokio_rusqlite::{Connection, params};
+use tracing::{error, info};
 
 static CONN: OnceLock<Connection> = OnceLock::new();
 use anyhow::Result;
@@ -12,11 +12,11 @@ use crate::order::Order;
 pub async fn init_db() -> Result<()> {
     // Open the connection asynchronously first
     let conn = Connection::open("./chinpay.db").await?;
-    let _ = conn
+    let result = conn
         .call(|conn| {
             Ok(conn.execute_batch(
                 "
-            CREATE TABLE IF NOT EXISTS order (
+            CREATE TABLE IF NOT EXISTS `order` (
                 uuid TEXT PRIMARY KEY,
                 timestamp DATETIME NOT NULL,
                 afd_order TEXT NOT NULL,
@@ -25,16 +25,16 @@ pub async fn init_db() -> Result<()> {
                 status VARCHAR(10) NOT NULL
             );
 
-            CREATE TABLE IF NOT EXISTS cdk (
+            CREATE TABLE IF NOT EXISTS `cdk` (
                 cdk        TEXT NOT NULL UNIQUE,
                 uuid       TEXT,
                 used_by    TEXT
             );
             ",
-            ))
+            ))  
         })
         .await?;
-    // Store the connection in the OnceLock
+
     CONN.get_or_init(|| conn);
     Ok(())
 }
