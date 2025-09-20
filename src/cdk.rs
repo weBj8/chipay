@@ -1,13 +1,16 @@
-use std::time::{SystemTime, UNIX_EPOCH};
 use md5;
 use rand;
 use serde::{Deserialize, Serialize};
+use std::time::{SystemTime, UNIX_EPOCH};
+use tokio_rusqlite::types::Null;
 
+use crate::plan::Plan;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CDK {
     pub cdk: String,
     pub used_by: Option<String>,
+    pub plan: Option<Plan>,
 }
 
 impl CDK {
@@ -15,12 +18,17 @@ impl CDK {
         let p1 = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
-            .as_millis().to_string();
-        
+            .as_millis()
+            .to_string();
+
         let p2 = rand::random::<u64>().to_string();
         let cdk = format!("{:x}", md5::compute(format!("{}{}", p1, p2)));
 
-        Self { cdk, used_by: None }
+        Self {
+            cdk,
+            used_by: None,
+            plan: None,
+        }
     }
 }
 

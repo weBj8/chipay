@@ -5,7 +5,7 @@ use uuid::Uuid;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::cdk::{self, CDK};
+use crate::{cdk::{self, CDK}, plan::{get_plan_by_price, Plan}};
 
 #[derive(Debug, Clone, Copy, Serialize, PartialEq)]
 pub enum Status {
@@ -37,6 +37,7 @@ pub struct Order {
     pub price: i32, // cent
     pub afd_order: String,
     pub cdk: Option<CDK>,
+    pub plan: Option<Plan>,
     pub status: Status,
 }
 
@@ -57,6 +58,7 @@ impl Order {
             price: price,
             afd_order: "".into(),
             cdk: None,
+            plan: get_plan_by_price(price),
             status: Status::Pending,
         }
     }

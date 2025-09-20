@@ -1,0 +1,13 @@
+# plans. price is unique and its for indexing
+
+[[plans]]
+id = 1
+price = 399
+name = "1 x COCK"
+description = "Can buy a cook in game"
+
+[[plans]]
+id = 2
+price = 999
+name = "1 x PING HAO FAN"
+description = "Can buy a cooked rice in game"

@@ -1,6 +1,7 @@
 mod cdk;
 mod dao;
 mod order;
+mod plan;
 use axum::{
     Json, Router,
     extract::Path,
@@ -19,7 +20,10 @@ use std::sync::LazyLock;
 
 static ORDER_MAP: LazyLock<DashMap<String, Order>> = LazyLock::new(|| DashMap::new());
 
-use crate::order::Order;
+use crate::{
+    order::Order,
+    plan::{Plan, get_plan_by_price},
+};
 
 #[derive(Deserialize, Debug)]
 pub struct WebhookRequest {
@@ -130,12 +134,16 @@ async fn handle_webhook(request: Json<WebhookRequest>) -> Result<Json<WebhookRes
     if let Some(mut order) = ORDER_MAP.get_mut(uuid) {
         if order.price != price {
             order.status = order::Status::Failed;
-            warn!("order {} with afd id {} failed due to diffrent price", uuid, afd_id);
+            warn!(
+                "order {} with afd id {} failed due to diffrent price",
+                uuid, afd_id
+            );
             dao::insert_order(order.to_owned()).await?;
             return Ok(response.into());
         }
         order.status = order::Status::Completed;
         order.cdk = Some(cdk::CDK::new());
+        order.cdk.as_mut().unwrap().plan = get_plan_by_price(price);
         info!("order {} with afd id {} completed", uuid, afd_id);
         dao::insert_order(order.to_owned()).await?;
         dao::insert_cdk(order.uuid.to_string(), order.cdk.clone().unwrap()).await?;
@@ -181,9 +189,14 @@ async fn get_order_cdk(Path(order_id): Path<String>) -> String {
     order.cdk.as_ref().unwrap().to_string()
 }
 
-async fn use_cdk(request: Json<CdkUseRequest>) -> Result<StatusCode, AppError> {
-    dao::use_cdk(request.cdk.to_owned(), request.user.to_owned()).await?;
-    Ok(StatusCode::OK)
+async fn use_cdk(request: Json<CdkUseRequest>) -> Result<String, AppError> {
+    let plan = dao::use_cdk(request.cdk.to_owned(), request.user.to_owned()).await?;
+    Ok(plan.to_string())
+}
+
+async fn get_plans() -> Json<Vec<Plan>> {
+    let plans = plan::get_plans();
+    Json(plans)
 }
 
 #[tokio::main]
@@ -207,7 +220,8 @@ async fn main() {
         .route("/api/create_order", post(create_order))
         .route("/api/get_order_status/{order_uuid}", get(get_order_status))
         .route("/api/get_order_cdk/{order_uuid}", get(get_order_cdk))
-        .route("/api/use_cdk", post(use_cdk));
+        .route("/api/use_cdk", post(use_cdk))
+        .route("/api/get_plans", get(get_plans));
 
     // run our app with hyper, listening globally on port 3000
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();

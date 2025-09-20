@@ -17,3 +17,4 @@ tokio-rusqlite = { version = "0.6.0", features = ["bundled"] }
 anyhow = "1.0.100"
 md5 = "0.8.0"
 rand = "0.9.2"
+toml = "0.9.7"
