@@ -20,6 +20,20 @@
         .plan-card:hover {
             transform: translateY(-5px);
         }
+
+        @keyframes colorChange {
+            0% { color: red; transform: scale(1); }
+            16.66% { color: orange; transform: scale(1.1); }
+            33.33% { color: yellow; transform: scale(1); }
+            50% { color: green; transform: scale(1.1); }
+            66.66% { color: blue; transform: scale(1); }
+            83.33% { color: indigo; transform: scale(1.1); }
+            100% { color: violet; transform: scale(1); }
+        }
+
+        #title {
+            animation: colorChange 1s infinite;
+        }
     </style>
 </head>
 
@@ -28,7 +42,7 @@
         <div class="row justify-content-center">
             <div class="col-md-8">
                 <div class="text-center mb-5">
-                    <h1 class="display-4 fw-bold mb-3">选择您的套餐</h1>
+                    <h1 id="title" class="display-4 fw-bold mb-3">选择您的套餐</h1>
                     <p class="lead text-muted">请选择以下套餐之一，您将被重定向到爱发电完成支付</p>
                 </div>
 
@@ -64,7 +78,7 @@
                     const planCard = document.createElement('div');
                     planCard.className = 'col-md-6 mb-4';
                     planCard.innerHTML = `
-                            <div class="card plan-card h-100 shadow-sm" onclick="selectPlan(${plan.price})">
+                            <div class="card plan-card h-100 shadow-sm" onclick="selectPlan(${plan.price}, '${plan.name}')"> 
                                 <div class="card-body d-flex flex-column">
                                     <h5 class="card-title">${plan.name}</h5>
                                     <p class="card-text flex-grow-1">${plan.description}</p>
@@ -92,7 +106,7 @@
         }
 
 
-        async function selectPlan(price) {
+        async function selectPlan(price,name) {
             try {
                 // 创建订单
                 const response = await fetch('/api/create_order', {
@@ -106,7 +120,7 @@
                 const order = await response.json();
 
                 // 在新窗口中打开爱发电支付页面
-                const afdUrl = `https://ifdian.net/order/create?user_id=25597eb8ed1111ea8d0352540025c377&custom_order_id=${order.uuid}&custom_price=${(price / 100).toFixed(2)}`;
+                const afdUrl = `https://ifdian.net/order/create?user_id=25597eb8ed1111ea8d0352540025c377&custom_order_id=${order.uuid}&custom_price=${(price / 100).toFixed(2)}&remark=${name}`;
                 popitup(afdUrl);
 
                 // 同时跳转到检查页
