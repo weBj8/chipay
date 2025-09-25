@@ -1,0 +1,8 @@
+FROM rust:bookworm AS builder
+WORKDIR /usr/src/chipay
+COPY . .
+RUN cargo install --path .
+
+FROM debian:bookworm-slim
+COPY --from=builder /usr/local/cargo/bin/chipay /usr/local/bin/chipay
+CMD ["chipay"]
