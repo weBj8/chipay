@@ -29,6 +29,7 @@ pub async fn init_db() -> Result<()> {
                 cdk        TEXT NOT NULL UNIQUE,
                 uuid       TEXT,
                 plan       INT,
+                used_time  DATETIME,
                 used_by    TEXT
             );
             ",
@@ -75,7 +76,7 @@ pub async fn insert_cdk(uuid: String, cdk: CDK) -> Result<()> {
     }
     conn.call(move |conn| {
         conn.execute(
-            "INSERT INTO `cdk` (cdk, uuid , plan, used_by) VALUES (?1, ?2, ?3, NULL)",
+            "INSERT INTO `cdk` (cdk, uuid , plan, used_by, used_time) VALUES (?1, ?2, ?3, NULL, NULL)",
             params![cdk.to_string(), uuid, cdk.plan.unwrap().id],
         )?;
         Ok(())
@@ -124,7 +125,7 @@ pub async fn use_cdk(cdk: String, user: String) -> Result<i32> {
     let lines = conn
         .call(move |conn| {
             let lines = conn.execute(
-                "UPDATE `cdk` SET `used_by` = ?1 WHERE `cdk` = ?2 AND `used_by` IS NULL",
+                "UPDATE `cdk` SET `used_by` = ?1, `used_time` = DATETIME('now') WHERE `cdk` = ?2 AND `used_by` IS NULL",
                 params![user, cdk_clone],
             )?;
 
