@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>订单状态检查</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.8/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
@@ -12,6 +12,14 @@
         }
         .status-icon {
             font-size: 4rem;
+        }
+
+        .footer-beian {
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            text-align: center;
+            padding: 1rem 0;
         }
     </style>
 </head>
@@ -63,6 +71,10 @@
             </div>
         </div>
     </div>
+    
+    <div class="footer-beian">
+        <a href="https://beian.miit.gov.cn" target="_blank" rel="noopener noreferrer" class="text-muted text-decoration-none">苏ICP备19043336号-1</a>
+    </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.8/js/bootstrap.min.js"></script>
     <script>
@@ -81,10 +93,11 @@
                 const status = await response.text();
                 
                 if (status === 'completed') {
-                    window.location.href = `get_cdk.html?orderId=${orderId}`;
-                } else if (status === 'failed') {
-                    showFailed();
-                } else if (status === 'not found') {
+                    // 获取CDK并显示成功页面
+                    const cdkResponse = await fetch(`/api/get_order_cdk/${orderId}`);
+                    const cdk = await cdkResponse.text();
+                    showSuccess(orderId, cdk);
+                } else if (status === 'failed' || status === 'not found') {
                     showFailed();
                 } else {
                     // 继续轮询
@@ -107,17 +120,12 @@
             document.getElementById('cdk-code').textContent = cdk;
             
             // 显示套餐信息
-            fetch(`/api/get_order_cdk/${orderId}`)
-                .then(response => response.text())
-                .then(cdk => {
-                    // 这里可以进一步获取套餐详情并显示
-                    document.getElementById('plan-info').innerHTML = `
-                        <h5>订单信息</h5>
-                        <p>订单号: ${orderId}</p>
-                        <p>CDK: ${cdk}</p>
-                        <p class="mb-0">请妥善保管您的CDK，可在游戏中兑换相应物品。</p>
-                    `;
-                });
+            document.getElementById('plan-info').innerHTML = `
+                <h5>订单信息</h5>
+                <p>订单号: ${orderId}</p>
+                <p>CDK: ${cdk}</p>
+                <p class="mb-0">请妥善保管您的CDK，可在游戏中兑换相应物品。</p>
+            `;
         }
         
         // 显示失败页面
@@ -144,7 +152,28 @@
         document.addEventListener('DOMContentLoaded', function() {
             const orderId = getUrlParameter('orderId');
             if (orderId) {
-                checkOrderStatus(orderId);
+                // 异步获取CDK
+                fetch(`/api/get_order_status/${orderId}`)
+                    .then(response => response.text())
+                    .then(status => {
+                        if (status === 'completed') {
+                            // 如果状态已完成，直接获取CDK并显示
+                            fetch(`/api/get_order_cdk/${orderId}`)
+                                .then(cdkResponse => cdkResponse.text())
+                                .then(cdk => {
+                                    showSuccess(orderId, cdk);
+                                });
+                        } else if (status === 'failed' || status === 'not found') {
+                            showFailed();
+                        } else {
+                            // 如果状态未完成，开始轮询
+                            checkOrderStatus(orderId);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('初始检查订单状态失败:', error);
+                        checkOrderStatus(orderId);
+                    });
             } else {
                 showFailed();
             }
