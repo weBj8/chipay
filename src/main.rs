@@ -9,22 +9,26 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
-use rust_embed::RustEmbed;
 use axum_embed::ServeEmbed;
+use rust_embed::RustEmbed;
 use serde::{Deserialize, Serialize};
-use tracing::{info, level_filters::LevelFilter, warn};
+use tokio::time::interval;
+use tracing::{debug, info, level_filters::LevelFilter, warn};
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt};
 
 use dashmap::DashMap;
 
-use std::sync::LazyLock;
+use std::{
+    sync::LazyLock,
+    time::{Duration, Instant},
+};
 
-static ORDER_MAP: LazyLock<DashMap<String, Order>> = LazyLock::new(|| DashMap::new());
+static ORDER_MAP: LazyLock<DashMap<String, (Order, Instant)>> = LazyLock::new(|| DashMap::new());
 
 use crate::{
     order::Order,
-    plan::{Plan, get_plan_by_price},
+    plan::{Plan, get_plan_by_id},
 };
 
 #[derive(Deserialize, Debug)]
@@ -117,6 +121,41 @@ const DEFAULT_LOG_LEVEL: LevelFilter = if cfg!(debug_assertions) {
     LevelFilter::INFO
 };
 
+async fn check_timeout() {
+    // 5 分钟的超时时间
+    const ORDER_TIMEOUT_SECS: u64 = 5 * 60;
+    // 清理任务每 5s 运行一次
+    const CLEANUP_INTERVAL_SECS: u64 = 5;
+    let mut interval = interval(Duration::from_secs(CLEANUP_INTERVAL_SECS));
+
+    interval.tick().await;
+
+    loop {
+        interval.tick().await;
+
+        debug!("Starting ORDER_MAP cleanup...");
+        let now = Instant::now();
+        let timeout = Duration::from_secs(ORDER_TIMEOUT_SECS);
+
+        // 使用 DashMap 的 retain 方法来原子性地进行清理
+        let mut removed_count = 0;
+        ORDER_MAP.retain(|_order_id, order| {
+            if now.duration_since(order.1) > timeout {
+                info!("Order {} timed out and is being removed.", _order_id);
+                removed_count += 1;
+                return false;
+            }
+
+            return true;
+        });
+
+        debug!(
+            "Finished cleanup. Removed {} timed out orders.",
+            removed_count
+        );
+    }
+}
+
 async fn handle_webhook(request: Json<WebhookRequest>) -> Result<Json<WebhookResponse>, AppError> {
     let afd_id = &request.data.order.out_trade_no;
     let price: i32 = request.data.order.total_amount.replace(".", "").parse()?;
@@ -127,17 +166,18 @@ async fn handle_webhook(request: Json<WebhookRequest>) -> Result<Json<WebhookRes
         .as_deref()
         .unwrap_or_default();
 
-    info!("webhook recived");
-    info!("{:?}", request);
+    info!("Webhook triggered");
+    debug!("{:?}", request);
 
     let response = WebhookResponse::new(200);
-    info!("{:?}", response);
+    debug!("{:?}", response);
 
-    if let Some(mut order) = ORDER_MAP.get_mut(uuid) {
+    if let Some(mut entry) = ORDER_MAP.get_mut(uuid) {
+        let order = &mut entry.0;
         if order.price != price {
             order.status = order::Status::Failed;
             warn!(
-                "order {} with afd id {} failed due to diffrent price",
+                "Order {} with afd id {} FAILED due to diffrent price",
                 uuid, afd_id
             );
             dao::insert_order(order.to_owned()).await?;
@@ -145,8 +185,8 @@ async fn handle_webhook(request: Json<WebhookRequest>) -> Result<Json<WebhookRes
         }
         order.status = order::Status::Completed;
         order.cdk = Some(cdk::CDK::new());
-        order.cdk.as_mut().unwrap().plan = get_plan_by_price(price);
-        info!("order {} with afd id {} completed", uuid, afd_id);
+        order.cdk.as_mut().unwrap().plan = get_plan_by_id(order.plan.clone().unwrap().id);
+        info!("Order {} with afd id {} completed", uuid, afd_id);
         dao::insert_order(order.to_owned()).await?;
         dao::insert_cdk(order.uuid.to_string(), order.cdk.clone().unwrap()).await?;
     }
@@ -155,25 +195,26 @@ async fn handle_webhook(request: Json<WebhookRequest>) -> Result<Json<WebhookRes
 }
 
 async fn create_order(request: Json<order::OrderRequest>) -> Json<Order> {
-    let order = Order::new(((request.price * 100.0).round()) as i32);
+    let order = Order::new(((request.price * 100.0).round()) as i32, request.plan_id);
 
-    ORDER_MAP.insert(order.uuid.to_string(), order.clone());
+    info!("Order {} created with plan {}, price {}", order.uuid, request.plan_id, request.price);
+
+    ORDER_MAP.insert(order.uuid.to_string(), (order.clone(), Instant::now()));
 
     order.into()
 }
 
 async fn get_order_status(Path(order_id): Path<String>) -> String {
-    if let Some(order) = ORDER_MAP.get(&order_id) {
+    if let Some(entry) = ORDER_MAP.get(&order_id) {
+        let order = &entry.0;
         let order_str = order.status.to_string();
         if order.status == order::Status::Completed {
-            info!("READY TO REMOVE");
             let order_id_clone = order_id.clone();
             tokio::task::spawn_blocking(move || {
                 let _ = tokio::time::sleep(tokio::time::Duration::from_secs(60));
                 ORDER_MAP.remove(&order_id_clone);
-                info!("order removed");
+                info!("Order {} removed", order_id_clone);
             });
-            info!("order removed")
         }
 
         order_str
@@ -183,8 +224,13 @@ async fn get_order_status(Path(order_id): Path<String>) -> String {
 }
 
 async fn get_order_cdk(Path(order_id): Path<String>) -> String {
+    debug!("Querying cdk for uuid {}", order_id);
+    let order_id_clone = order_id.clone();
     match dao::query_cdk_from_uuid(order_id).await {
-        Ok(Some(cdk)) => cdk.to_string(),
+        Ok(Some(cdk)) => {
+            debug!("CDK found for {} is {}", order_id_clone, cdk.cdk);
+            cdk.to_string()
+        }
         Ok(None) => "".to_string(),
         Err(_) => "".to_string(),
     }
@@ -192,6 +238,7 @@ async fn get_order_cdk(Path(order_id): Path<String>) -> String {
 
 async fn use_cdk(request: Json<CdkUseRequest>) -> Result<String, AppError> {
     let plan = dao::use_cdk(request.cdk.to_owned(), request.user.to_owned()).await?;
+    debug!("CDK {} with plan {} used", request.cdk, plan);
     Ok(plan.to_string())
 }
 
@@ -241,6 +288,7 @@ async fn main() {
         .route("/api/admin/cdk_details", post(check_cdk))
         .route("/api/admin/order_details", post(get_order_details));
 
+    tokio::spawn(async move { check_timeout().await });
     // run our app with hyper, listening globally on port 3000
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
     axum::serve(listener, app).await.unwrap();

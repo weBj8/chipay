@@ -4,7 +4,10 @@ use uuid::Uuid;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::{cdk::CDK, plan::{get_plan_by_price, Plan}};
+use crate::{
+    cdk::CDK,
+    plan::{self, Plan, get_plan_by_id},
+};
 
 #[derive(Debug, Clone, Copy, Serialize, PartialEq)]
 pub enum Status {
@@ -43,10 +46,11 @@ pub struct Order {
 #[derive(Deserialize, Debug)]
 pub struct OrderRequest {
     pub price: f32,
+    pub plan_id: i32,
 }
 
 impl Order {
-    pub fn new(price: i32) -> Self {
+    pub fn new(price: i32, plan_id: i32) -> Self {
         let uuid = Uuid::new_v4().to_string();
         let utc_now: DateTime<Utc> = Utc::now();
         let timestamp_secs = utc_now.timestamp();
@@ -57,7 +61,7 @@ impl Order {
             price: price,
             afd_order: "".into(),
             cdk: None,
-            plan: get_plan_by_price(price),
+            plan: get_plan_by_id(plan_id),
             status: Status::Pending,
         }
     }

@@ -21,50 +21,47 @@
             transform: translateY(-5px);
         }
 
-                @keyframes colorChange {
-            0% {
-                color: rgb(200, 49, 49);
-            }
-            16.66% {
-                color: orange;
-            }
-            33.33% {
-                color: rgb(217, 217, 80);
-            }
-            50% {
-                color: green;
-            }
-            66.66% {
-                color: blue;
-            }
-            83.33% {
-                color: indigo;
-            }
+        /* 1. 独立的关键帧: 只控制缩放 (Scale) */
+        @keyframes minecraftScale {
+
+            0%,
             100% {
-                color: violet;
+                transform: scale(1);
+                /* 0% 和 100% 保持正常大小 */
+            }
+
+            50% {
+                transform: scale(1.2);
+                /* 50% 放大 */
             }
         }
-        
-        @keyframes scaleChange {
-            0% {
-                transform: scale(1, 1);
-            }
-            25% {
-                transform: scale(1.1, 0.9);
-            }
-            50% {
-                transform: scale(0.9, 1.1);
-            }
-            75% {
-                transform: scale(1.05, 0.95);
-            }
+
+        /* 2. 独立的关键帧: 只控制旋转 (Rotate) */
+        @keyframes minecraftRotate {
+
+            0%,
             100% {
-                transform: scale(1, 1);
+                transform: rotate(-2.5deg);
+                /* 0% 和 100% 保持不旋转 */
+            }
+
+            50% {
+                transform: rotate(2.5deg);
+                /* 50% 旋转 */
             }
         }
 
         #title {
-            animation: colorChange 2s infinite, scaleChange 0.2s infinite;
+            transform-origin: center center;
+            /* 同时应用两个动画，用逗号分隔 */
+            animation:
+                /* 1. 缩放动画：立即开始 */
+                minecraftScale 2s cubic-bezier(0.8, 0, 0.2, 1) infinite;
+        }
+
+        #title-div {
+            animation:
+                minecraftRotate 3s linear infinite;
         }
     </style>
 </head>
@@ -74,8 +71,19 @@
         <div class="row justify-content-center">
             <div class="col-md-8">
                 <div class="text-center mb-5">
-                    <h1 id="title" class="display-4 fw-bold mb-3">选择您的套餐</h1>
-                    <p class="lead text-muted">请选择以下套餐之一，您将被重定向到爱发电完成支付</p>
+                    <div id="title-div">
+                        <h1 id="title" class="display-4 fw-bold mb-3">选择您的套餐</h1>
+                    </div>
+                    <p class="lead text-muted">请选择以下套餐之一，点击后将跳转到爱发电支付界面</p>
+                </div>
+
+                <!-- 添加提示信息 -->
+                <div class="alert alert-warning alert-dismissible fade show mb-4" role="alert">
+                    <!-- <h5 class="alert-heading">重要提示！</h5> -->
+                    <p class="mb-0">支付时请注意：</p>
+                    <ul class="mb-0">
+                        <li>请直接完成支付，<strong>不要修改金额、商品名称等信息</strong></li>
+                    </ul>
                 </div>
 
                 <div class="row" id="plans-container">
@@ -113,16 +121,16 @@
                     const planCard = document.createElement('div');
                     planCard.className = 'col-md-6 mb-4';
                     planCard.innerHTML = `
-                            <div class="card plan-card h-100 shadow-sm" onclick="selectPlan(${plan.price}, '${plan.name}')"> 
-                                <div class="card-body d-flex flex-column">
-                                    <h5 class="card-title">${plan.name}</h5>
-                                    <p class="card-text flex-grow-1">${plan.description}</p>
-                                    <div class="mt-auto">
-                                        <h4 class="text-primary mb-0">¥${priceInYuan}</h4>
-                                    </div>
+                        <div class="card plan-card h-100 shadow-sm" onclick="selectPlan(${plan.price}, '${plan.name}', ${plan.id})"> 
+                            <div class="card-body d-flex flex-column">
+                                <h5 class="card-title">${plan.name}</h5>
+                                <p class="card-text flex-grow-1">${plan.description}</p>
+                                <div class="mt-auto">
+                                    <h4 class="text-primary mb-0">¥${priceInYuan}</h4>
                                 </div>
                             </div>
-                        `;
+                        </div>
+                    `;
                     container.appendChild(planCard);
                 });
             } catch (error) {
@@ -133,15 +141,35 @@
         }
 
         // 选择套餐
-
         function popitup(url, windowName) {
-            newwindow = window.open(url, windowName, 'height=500,width=500');
+            // Get the browser window's inner dimensions
+            const browserWidth = window.innerWidth;
+            const browserHeight = window.innerHeight;
+
+            // Get the screen's left and top offsets (critical for multi-monitor setups)
+            // Use window.screenX/Y for modern browsers, or window.screenLeft/Top for older IE/Edge
+            const screenLeft = window.screenX || window.screenLeft;
+            const screenTop = window.screenY || window.screenTop;
+
+            // Set the desired window dimensions
+            const windowWidth = 500;
+            const windowHeight = 800;
+
+            // Calculate the window's left and top position for centering
+            // (Browser width - Pop-up width) / 2  +  Screen offset
+            const left = ((browserWidth - windowWidth) / 2) + screenLeft;
+            const top = ((browserHeight - windowHeight) / 2) + screenTop;
+
+            // Open the centered window
+            newwindow = window.open(url, windowName,
+                `height=${windowHeight},width=${windowWidth},left=${left},top=${top}`);
+
             if (window.focus) { newwindow.focus() }
             return false;
         }
 
 
-        async function selectPlan(price, name) {
+        async function selectPlan(price, name, planId) {
             try {
                 // 创建订单
                 const response = await fetch('/api/create_order', {
@@ -149,13 +177,19 @@
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ price: price / 100 })
+                    body: JSON.stringify({ price: price / 100, plan_id: planId })
                 });
 
                 const order = await response.json();
 
+                // 构建消息内容
+                const message = `${name} | ￥${(price / 100).toFixed(2)}\n>>${planId}>${order.uuid}\n============ 可在下一行留言 ============\n`;
+
+                // 对消息内容进行URL编码
+                const encodedMessage = encodeURIComponent(message);
+
                 // 在新窗口中打开爱发电支付页面
-                const afdUrl = `https://ifdian.net/order/create?user_id=00e74eccce8711eb9eed52540025c377&custom_order_id=${order.uuid}&custom_price=${(price / 100).toFixed(2)}&remark=${name}`;
+                const afdUrl = `https://ifdian.net/order/create?user_id=00e74eccce8711eb9eed52540025c377&custom_order_id=${order.uuid}&custom_price=${(price / 100).toFixed(2)}&remark=${encodedMessage}`;
                 popitup(afdUrl);
 
                 // 同时跳转到检查页

@@ -99,7 +99,7 @@ pub async fn query_cdk_from_uuid(uuid: String) -> Result<Option<CDK>> {
                 let plan_id: i32 = row.get(1)?;
                 
                 // Get the plan from the global PLANS map
-                let plan = crate::plan::get_plan_by_price(plan_id);
+                let plan = crate::plan::get_plan_by_id(plan_id);
                 
                 let cdk = CDK {
                     cdk: cdk_str,

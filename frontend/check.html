@@ -29,7 +29,9 @@
                                 <span class="visually-hidden">加载中...</span>
                             </div>
                             <h2 class="mt-3">正在检查订单状态</h2>
+                            <div class="text-success fw-bold">请在五分钟内完成支付，订单超时后将被系统自动删除</div>
                             <p class="text-muted">请稍候，我们正在确认您的支付状态...</p>
+                            <p id="order-id-display" class="text-muted"></p>
                         </div>
 
                         <div id="result-content" class="d-none">
@@ -57,9 +59,19 @@
                                 </div>
                                 <h2 class="text-danger">支付失败</h2>
                                 <p class="mt-3">很抱歉，您的支付未能完成。</p>
+                                <div class="alert alert-info text-start">
+                                    <h5 class="mt-1">可能的原因：</h5>
+                                    <ul>
+                                        <li>支付超时（请在五分钟内完成支付）</li>
+                                        <li>支付渠道维护或异常</li>
+                                        <li>订单号错误</li>
+                                        <li>支付了错误的金额（不予退还）</li>
+                                    </ul>
+                                </div>
                                 <div class="alert alert-warning">
-                                    <i class="fas fa-exclamation-triangle"></i> 请联系客服小祥处理此问题<br><a
-                                        href="order.html">返回下单页</a>
+                                    <i class="fas fa-exclamation-triangle"></i> 请联系客服 稻谷MCUT/KZK/ston 处理此问题<br>
+                                    <span id="error-order-id"></span><br>
+                                    <a href="order.html">返回下单页</a>
                                 </div>
                             </div>
                         </div>
@@ -93,7 +105,7 @@
                 if (status === 'completed') {
                     window.location.href = 'get_cdk.html?orderId=' + orderId;
                 } else if (status === 'failed' || status === 'not found') {
-                    showFailed();
+                    showFailed(orderId);
                 } else {
                     // 继续轮询
                     setTimeout(() => checkOrderStatus(orderId), 3000);
@@ -106,16 +118,21 @@
         }
 
         // 显示失败页面
-        function showFailed() {
+        function showFailed(orderId) {
             document.getElementById('status-content').classList.add('d-none');
             document.getElementById('result-content').classList.remove('d-none');
             document.getElementById('failed-content').classList.remove('d-none');
+            // 显示订单ID给客服
+            document.getElementById('error-order-id').textContent = '请提供订单号: ' + orderId;
         }
 
         // 页面加载时开始检查
         document.addEventListener('DOMContentLoaded', function () {
             const orderId = getUrlParameter('orderId');
             if (orderId) {
+                // 显示订单号
+                document.getElementById('order-id-display').textContent = '订单号: ' + orderId;
+
                 // 异步获取CDK
                 fetch(`/api/get_order_status/${orderId}`)
                     .then(response => response.text())
@@ -128,7 +145,7 @@
                                     showSuccess(orderId, cdk);
                                 });
                         } else if (status === 'failed' || status === 'not found') {
-                            showFailed();
+                            showFailed(orderId);
                         } else {
                             // 如果状态未完成，开始轮询
                             checkOrderStatus(orderId);
