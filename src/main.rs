@@ -174,7 +174,7 @@ async fn handle_webhook(request: Json<WebhookRequest>) -> Result<Json<WebhookRes
 
     if let Some(mut entry) = ORDER_MAP.get_mut(uuid) {
         let order = &mut entry.0;
-        if order.price != price {
+        if order.price != price || order.plan.clone().unwrap().price != price {
             order.status = order::Status::Failed;
             warn!(
                 "Order {} with afd id {} FAILED due to diffrent price",

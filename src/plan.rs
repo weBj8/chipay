@@ -19,7 +19,7 @@ pub static PLANS: LazyLock<DashMap<i32, Plan>> = LazyLock::new(|| {
     let plans: HashMap<String, Vec<Plan>> = toml::from_str(&content).expect("Failed to parse TOML");
     
     // 将套餐添加到 DashMap 中，使用id作为键
-    for plan in plans.get("id").unwrap() {
+    for plan in plans.get("plans").unwrap() {
         map.insert(plan.id, plan.clone());
     }
     
