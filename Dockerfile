@@ -5,6 +5,6 @@ RUN cargo install --path .
 
 FROM debian:bookworm-slim
 WORKDIR /chipay
-COPY --from=builder /usr/src/chipay/*.html /chipay
+# COPY --from=builder /usr/src/chipay/*.html /chipay
 COPY --from=builder /usr/local/cargo/bin/chipay /usr/local/bin/chipay
 CMD ["chipay"]

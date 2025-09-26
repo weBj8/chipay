@@ -9,7 +9,8 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
-use tower_http::services::ServeFile;
+use rust_embed::RustEmbed;
+use axum_embed::ServeEmbed;
 use serde::{Deserialize, Serialize};
 use tracing::{info, level_filters::LevelFilter, warn};
 use tracing_subscriber::util::SubscriberInitExt;
@@ -199,6 +200,18 @@ async fn get_plans() -> Json<Vec<Plan>> {
     Json(plans)
 }
 
+async fn check_cdk() -> Result<String, AppError> {
+    todo!("check cdk")
+}
+
+async fn get_order_details() -> Result<String, AppError> {
+    todo!("get order details")
+}
+
+#[derive(RustEmbed, Clone)]
+#[folder = "frontend/"]
+struct Assets;
+
 #[tokio::main]
 async fn main() {
     // initialize tracing
@@ -213,22 +226,20 @@ async fn main() {
 
     dao::init_db().await.expect("Failed to initialize database");
 
-    let serve_order_html = ServeFile::new("./order.html");
-    let serve_check_html = ServeFile::new("./check.html");
-    let serve_cdk_html = ServeFile::new("./get_cdk.html");
+    let serve_assets = ServeEmbed::<Assets>::new();
 
     let app = Router::new()
         // `GET /` goes to `root`
         .route("/", get(async || "sb"))
-        .route_service("/order.html", serve_order_html)
-        .route_service("/check.html", serve_check_html)
-        .route_service("/get_cdk.html", serve_cdk_html)
+        .fallback_service(serve_assets)
         .route("/api/webhook", post(handle_webhook))
         .route("/api/create_order", post(create_order))
         .route("/api/get_order_status/{order_uuid}", get(get_order_status))
         .route("/api/get_order_cdk/{order_uuid}", get(get_order_cdk))
         .route("/api/use_cdk", post(use_cdk))
-        .route("/api/get_plans", get(get_plans));
+        .route("/api/get_plans", get(get_plans))
+        .route("/api/admin/cdk_details", post(check_cdk))
+        .route("/api/admin/order_details", post(get_order_details));
 
     // run our app with hyper, listening globally on port 3000
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();

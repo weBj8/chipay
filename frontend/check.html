@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,19 +11,13 @@
         body {
             background-color: #f8f9fa;
         }
+
         .status-icon {
             font-size: 4rem;
         }
-
-        .footer-beian {
-            position: fixed;
-            bottom: 0;
-            width: 100%;
-            text-align: center;
-            padding: 1rem 0;
-        }
     </style>
 </head>
+
 <body>
     <div class="container py-5">
         <div class="row justify-content-center">
@@ -36,7 +31,7 @@
                             <h2 class="mt-3">正在检查订单状态</h2>
                             <p class="text-muted">请稍候，我们正在确认您的支付状态...</p>
                         </div>
-                        
+
                         <div id="result-content" class="d-none">
                             <div id="success-content" class="d-none">
                                 <div class="status-icon text-success mb-3">
@@ -47,14 +42,15 @@
                                 <div class="card bg-light mb-3">
                                     <div class="card-body d-flex justify-content-between align-items-center">
                                         <code id="cdk-code" class="fs-5"></code>
-                                        <button id="copy-btn" class="btn btn-outline-primary btn-sm" onclick="copyCDK()">
+                                        <button id="copy-btn" class="btn btn-outline-primary btn-sm"
+                                            onclick="copyCDK()">
                                             <i class="fas fa-copy"></i> 复制
                                         </button>
                                     </div>
                                 </div>
                                 <div id="plan-info" class="alert alert-info text-start"></div>
                             </div>
-                            
+
                             <div id="failed-content" class="d-none">
                                 <div class="status-icon text-danger mb-3">
                                     <i class="fas fa-times-circle"></i>
@@ -62,7 +58,8 @@
                                 <h2 class="text-danger">支付失败</h2>
                                 <p class="mt-3">很抱歉，您的支付未能完成。</p>
                                 <div class="alert alert-warning">
-                                    <i class="fas fa-exclamation-triangle"></i> 请联系客服小祥处理此问题<br><a href="order.html">返回下单页</a>
+                                    <i class="fas fa-exclamation-triangle"></i> 请联系客服小祥处理此问题<br><a
+                                        href="order.html">返回下单页</a>
                                 </div>
                             </div>
                         </div>
@@ -70,11 +67,12 @@
                 </div>
             </div>
         </div>
+        <div class="text-center mt-3">
+            <a href="https://beian.miit.gov.cn" class="text-muted text-decoration-none">苏ICP备19043336号-1</a>
+        </div>
     </div>
-    
-    <div class="footer-beian">
-        <a href="https://beian.miit.gov.cn" target="_blank" rel="noopener noreferrer" class="text-muted text-decoration-none">苏ICP备19043336号-1</a>
-    </div>
+
+
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.8/js/bootstrap.min.js"></script>
     <script>
@@ -85,13 +83,13 @@
             var results = regex.exec(window.location.href);
             return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
         }
-        
+
         // 轮询订单状态
         async function checkOrderStatus(orderId) {
             try {
                 const response = await fetch(`/api/get_order_status/${orderId}`);
                 const status = await response.text();
-                
+
                 if (status === 'completed') {
                     // 获取CDK并显示成功页面
                     const cdkResponse = await fetch(`/api/get_order_cdk/${orderId}`);
@@ -109,16 +107,16 @@
                 setTimeout(() => checkOrderStatus(orderId), 3000);
             }
         }
-        
+
         // 显示成功页面
         function showSuccess(orderId, cdk) {
             document.getElementById('status-content').classList.add('d-none');
             document.getElementById('result-content').classList.remove('d-none');
             document.getElementById('success-content').classList.remove('d-none');
-            
+
             // 显示CDK
             document.getElementById('cdk-code').textContent = cdk;
-            
+
             // 显示套餐信息
             document.getElementById('plan-info').innerHTML = `
                 <h5>订单信息</h5>
@@ -127,14 +125,14 @@
                 <p class="mb-0">请妥善保管您的CDK，可在游戏中兑换相应物品。</p>
             `;
         }
-        
+
         // 显示失败页面
         function showFailed() {
             document.getElementById('status-content').classList.add('d-none');
             document.getElementById('result-content').classList.remove('d-none');
             document.getElementById('failed-content').classList.remove('d-none');
         }
-        
+
         // 复制CDK
         function copyCDK() {
             const cdk = document.getElementById('cdk-code').textContent;
@@ -147,9 +145,9 @@
                 }, 2000);
             });
         }
-        
+
         // 页面加载时开始检查
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             const orderId = getUrlParameter('orderId');
             if (orderId) {
                 // 异步获取CDK
@@ -180,4 +178,5 @@
         });
     </script>
 </body>
+
 </html>

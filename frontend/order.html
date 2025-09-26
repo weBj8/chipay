@@ -21,26 +21,50 @@
             transform: translateY(-5px);
         }
 
-        @keyframes colorChange {
-            0% { color: red; transform: scale(1); }
-            16.66% { color: orange; transform: scale(1.1); }
-            33.33% { color: yellow; transform: scale(1); }
-            50% { color: green; transform: scale(1.1); }
-            66.66% { color: blue; transform: scale(1); }
-            83.33% { color: indigo; transform: scale(1.1); }
-            100% { color: violet; transform: scale(1); }
+                @keyframes colorChange {
+            0% {
+                color: rgb(200, 49, 49);
+            }
+            16.66% {
+                color: orange;
+            }
+            33.33% {
+                color: rgb(217, 217, 80);
+            }
+            50% {
+                color: green;
+            }
+            66.66% {
+                color: blue;
+            }
+            83.33% {
+                color: indigo;
+            }
+            100% {
+                color: violet;
+            }
+        }
+        
+        @keyframes scaleChange {
+            0% {
+                transform: scale(1, 1);
+            }
+            25% {
+                transform: scale(1.1, 0.9);
+            }
+            50% {
+                transform: scale(0.9, 1.1);
+            }
+            75% {
+                transform: scale(1.05, 0.95);
+            }
+            100% {
+                transform: scale(1, 1);
+            }
         }
 
         #title {
-            animation: colorChange 1s infinite;
-        }
-
-        .footer-beian {
-            position: fixed;
-            bottom: 0;
-            width: 100%;
-            text-align: center;
-            padding: 1rem 0;
+            animation: colorChange 2s infinite, scaleChange 0.2s infinite;
         }
     </style>
 </head>
@@ -64,10 +88,9 @@
                 </div>
             </div>
         </div>
-    </div>
-
-    <div class="footer-beian">
-        <a href="https://beian.miit.gov.cn" target="_blank" rel="noopener noreferrer" class="text-muted text-decoration-none">苏ICP备19043336号-1</a>
+        <div class="text-center mt-3">
+            <a href="https://beian.miit.gov.cn" class="text-muted text-decoration-none">苏ICP备19043336号-1</a>
+        </div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.8/js/bootstrap.min.js"></script>
@@ -118,7 +141,7 @@
         }
 
 
-        async function selectPlan(price,name) {
+        async function selectPlan(price, name) {
             try {
                 // 创建订单
                 const response = await fetch('/api/create_order', {
@@ -132,7 +155,7 @@
                 const order = await response.json();
 
                 // 在新窗口中打开爱发电支付页面
-                const afdUrl = `https://ifdian.net/order/create?user_id=25597eb8ed1111ea8d0352540025c377&custom_order_id=${order.uuid}&custom_price=${(price / 100).toFixed(2)}&remark=${name}`;
+                const afdUrl = `https://ifdian.net/order/create?user_id=00e74eccce8711eb9eed52540025c377&custom_order_id=${order.uuid}&custom_price=${(price / 100).toFixed(2)}&remark=${name}`;
                 popitup(afdUrl);
 
                 // 同时跳转到检查页

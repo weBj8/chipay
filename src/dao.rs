@@ -11,7 +11,7 @@ use crate::order::Order;
 pub async fn init_db() -> Result<()> {
     // Open the connection asynchronously first
     let conn = Connection::open("./chinpay.db").await?;
-    let result = conn
+    let _result = conn
         .call(|conn| {
             Ok(conn.execute_batch(
                 "

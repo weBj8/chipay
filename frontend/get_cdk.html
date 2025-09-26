@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,19 +11,13 @@
         body {
             background-color: #f8f9fa;
         }
+
         .status-icon {
             font-size: 4rem;
         }
-
-        .footer-beian {
-            position: fixed;
-            bottom: 0;
-            width: 100%;
-            text-align: center;
-            padding: 1rem 0;
-        }
     </style>
 </head>
+
 <body>
     <div class="container py-5">
         <div class="row justify-content-center">
@@ -36,7 +31,7 @@
                             <h2 class="mt-3">正在获取CDK</h2>
                             <p class="text-muted">请稍候...</p>
                         </div>
-                        
+
                         <div id="cdk-content" class="d-none">
                             <div class="status-icon text-success mb-3">
                                 <i class="fas fa-check-circle"></i>
@@ -56,7 +51,7 @@
                                 <a href="order.html" class="btn btn-primary">返回下单页</a>
                             </div>
                         </div>
-                        
+
                         <div id="error-content" class="d-none">
                             <div class="status-icon text-danger mb-3">
                                 <i class="fas fa-times-circle"></i>
@@ -64,17 +59,17 @@
                             <h2 class="text-danger">获取失败</h2>
                             <p class="mt-3">很抱歉，获取CDK时出现错误。</p>
                             <div class="alert alert-warning">
-                                <i class="fas fa-exclamation-triangle"></i> 请联系客服小祥处理此问题<br><a href="order.html">返回下单页</a>
+                                <i class="fas fa-exclamation-triangle"></i> 请联系客服小祥处理此问题<br><a
+                                    href="order.html">返回下单页</a>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
-    
-    <div class="footer-beian">
-        <a href="https://beian.miit.gov.cn" target="_blank" rel="noopener noreferrer" class="text-muted text-decoration-none">苏ICP备19043336号-1</a>
+        <div class="text-center mt-3">
+            <a href="https://beian.miit.gov.cn" class="text-muted text-decoration-none">苏ICP备19043336号-1</a>
+        </div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.8/js/bootstrap.min.js"></script>
@@ -86,20 +81,20 @@
             var results = regex.exec(window.location.href);
             return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
         }
-        
+
         // 获取并显示CDK
         async function loadCDK(orderId) {
             try {
                 // 获取CDK
                 const cdkResponse = await fetch(`/api/get_order_cdk/${orderId}`);
                 const cdk = await cdkResponse.text();
-                
+
                 if (cdk) {
                     // 显示CDK
                     document.getElementById('loading-content').classList.add('d-none');
                     document.getElementById('cdk-content').classList.remove('d-none');
                     document.getElementById('cdk-code').textContent = cdk;
-                    
+
                     // 显示套餐信息
                     document.getElementById('plan-info').innerHTML = `
                         <h5>订单信息</h5>
@@ -119,7 +114,7 @@
                 document.getElementById('error-content').classList.remove('d-none');
             }
         }
-        
+
         // 复制CDK
         function copyCDK() {
             const cdk = document.getElementById('cdk-code').textContent;
@@ -132,9 +127,9 @@
                 }, 2000);
             });
         }
-        
+
         // 页面加载时获取CDK
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             const orderId = getUrlParameter('orderId');
             if (orderId) {
                 loadCDK(orderId);
@@ -146,4 +141,5 @@
         });
     </script>
 </body>
+
 </html>
