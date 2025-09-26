@@ -91,10 +91,7 @@
                 const status = await response.text();
 
                 if (status === 'completed') {
-                    // 获取CDK并显示成功页面
-                    const cdkResponse = await fetch(`/api/get_order_cdk/${orderId}`);
-                    const cdk = await cdkResponse.text();
-                    showSuccess(orderId, cdk);
+                    window.location.href = 'get_cdk.html?orderId=' + orderId;
                 } else if (status === 'failed' || status === 'not found') {
                     showFailed();
                 } else {
@@ -108,42 +105,11 @@
             }
         }
 
-        // 显示成功页面
-        function showSuccess(orderId, cdk) {
-            document.getElementById('status-content').classList.add('d-none');
-            document.getElementById('result-content').classList.remove('d-none');
-            document.getElementById('success-content').classList.remove('d-none');
-
-            // 显示CDK
-            document.getElementById('cdk-code').textContent = cdk;
-
-            // 显示套餐信息
-            document.getElementById('plan-info').innerHTML = `
-                <h5>订单信息</h5>
-                <p>订单号: ${orderId}</p>
-                <p>CDK: ${cdk}</p>
-                <p class="mb-0">请妥善保管您的CDK，可在游戏中兑换相应物品。</p>
-            `;
-        }
-
         // 显示失败页面
         function showFailed() {
             document.getElementById('status-content').classList.add('d-none');
             document.getElementById('result-content').classList.remove('d-none');
             document.getElementById('failed-content').classList.remove('d-none');
-        }
-
-        // 复制CDK
-        function copyCDK() {
-            const cdk = document.getElementById('cdk-code').textContent;
-            navigator.clipboard.writeText(cdk).then(() => {
-                const btn = document.getElementById('copy-btn');
-                const originalText = btn.innerHTML;
-                btn.innerHTML = '<i class="fas fa-check"></i> 已复制';
-                setTimeout(() => {
-                    btn.innerHTML = originalText;
-                }, 2000);
-            });
         }
 
         // 页面加载时开始检查
