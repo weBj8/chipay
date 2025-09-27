@@ -1,7 +1,9 @@
-mod cdk;
 mod dao;
-mod order;
+mod entities;
+mod handler;
 mod plan;
+use entities::order::Status as OrderStatus;
+
 use axum::{
     Json, Router,
     extract::Path,
@@ -9,6 +11,10 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
+
+use entities::prelude::*;
+use sea_orm::{entity::prelude::*, ActiveValue::Set, TryIntoModel};
+
 use axum_embed::ServeEmbed;
 use rust_embed::RustEmbed;
 use serde::{Deserialize, Serialize};
@@ -24,73 +30,12 @@ use std::{
     time::{Duration, Instant},
 };
 
-static ORDER_MAP: LazyLock<DashMap<String, (Order, Instant)>> = LazyLock::new(|| DashMap::new());
+static ORDER_MAP: LazyLock<DashMap<String, (OrderModel, Instant)>> =
+    LazyLock::new(|| DashMap::new());
 
-use crate::{
-    order::Order,
-    plan::{Plan, get_plan_by_id},
-};
+use crate::{entities::order, handler::order::*, plan::{get_plan_by_id, Plan}};
 
-#[derive(Deserialize, Debug)]
-pub struct WebhookRequest {
-    pub ec: i32,
-    pub em: String,
-    pub data: WebhookData,
-}
 
-#[derive(Deserialize, Debug)]
-pub struct WebhookData {
-    #[serde(rename = "type")]
-    pub data_type: String,
-    pub order: AfdOrder,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct AfdOrder {
-    pub out_trade_no: String,
-    pub custom_order_id: Option<String>,
-    pub user_id: String,
-    pub user_private_id: String,
-    pub plan_id: String,
-    pub month: i32,
-    pub total_amount: String,
-    pub show_amount: String,
-    pub status: i32,
-    pub remark: String,
-    pub redeem_id: String,
-    pub product_type: i32,
-    pub discount: String,
-    pub sku_detail: Vec<SkuDetail>,
-    pub address_person: String,
-    pub address_phone: String,
-    pub address_address: String,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct SkuDetail {
-    pub sku_id: String,
-    pub count: i32,
-    pub name: String,
-    pub album_id: String,
-    pub pic: String,
-}
-
-#[derive(Serialize, Debug)]
-pub struct WebhookResponse {
-    pub ec: i32,
-}
-
-impl WebhookResponse {
-    pub fn new(ec: i32) -> Self {
-        Self { ec }
-    }
-}
-
-#[derive(Deserialize, Debug)]
-struct CdkUseRequest {
-    pub cdk: String,
-    pub user: String,
-}
 
 // Make our own error that wraps `anyhow::Error`.
 struct AppError(anyhow::Error);
@@ -174,8 +119,11 @@ async fn handle_webhook(request: Json<WebhookRequest>) -> Result<Json<WebhookRes
 
     if let Some(mut entry) = ORDER_MAP.get_mut(uuid) {
         let order = &mut entry.0;
-        if order.price != price || order.plan.clone().unwrap().price != price {
-            order.status = order::Status::Failed;
+
+        if order.price.into_value().unwrap() != price.into()
+            || plan::get_plan_by_id(order.plan.unwrap()).is_some_and(|plan| plan.price != price)
+        {
+            order.status = Set(OrderStatus::Failed);
             warn!(
                 "Order {} with afd id {} FAILED due to diffrent price",
                 uuid, afd_id
@@ -183,9 +131,19 @@ async fn handle_webhook(request: Json<WebhookRequest>) -> Result<Json<WebhookRes
             dao::insert_order(order.to_owned()).await?;
             return Ok(response.into());
         }
-        order.status = order::Status::Completed;
-        order.cdk = Some(cdk::CDK::new());
-        order.cdk.as_mut().unwrap().plan = get_plan_by_id(order.plan.clone().unwrap().id);
+        order.status = Set(OrderStatus::Completed);
+        let cdk = CdkModel {
+            uuid: Set(Some(order.uuid.into_value().unwrap().to_string())),
+            ..Default::default()
+        }; 
+        // order.cdk = Some(CdkModel {
+        //     uuid: Set(Some(order.uuid.to_string())),
+        //     cdk: Set(dao::generate_cdk()),
+        //     plan_id: Set(order.plan.unwrap()),
+        //     user: Set(request.data.order.user_id.to_string()),
+        //     ..Default::default()
+        // });
+        cdk.plan = Set(order.plan.unwrap());
         info!("Order {} with afd id {} completed", uuid, afd_id);
         dao::insert_order(order.to_owned()).await?;
         dao::insert_cdk(order.uuid.to_string(), order.cdk.clone().unwrap()).await?;
@@ -194,21 +152,28 @@ async fn handle_webhook(request: Json<WebhookRequest>) -> Result<Json<WebhookRes
     Ok(response.into())
 }
 
-async fn create_order(request: Json<order::OrderRequest>) -> Json<Order> {
-    let order = Order::new(((request.price * 100.0).round()) as i32, request.plan_id);
+async fn create_order(request: Json<OrderRequest>) -> Json<OrderModel> {
+    // let order = Order::new(((request.price * 100.0).round()) as i32, request.plan_id);
+    let order = OrderModel::new(((request.price * 100.0).round()) as i32, request.plan_id);
+    let uuid: String = order.uuid.clone().into_value().unwrap().to_string();
+    // let order_model = order.clone().try_into_model().unwrap();
 
-    info!("Order {} created with plan {}, price {}", order.uuid, request.plan_id, request.price);
+    info!(
+        "Order {} created with plan {}, price {}",
+        &uuid, request.plan_id, request.price
+    );
 
-    ORDER_MAP.insert(order.uuid.to_string(), (order.clone(), Instant::now()));
+    ORDER_MAP.insert(uuid, (order.clone(), Instant::now()));
 
-    order.into()
+    Json(order)
 }
 
 async fn get_order_status(Path(order_id): Path<String>) -> String {
     if let Some(entry) = ORDER_MAP.get(&order_id) {
         let order = &entry.0;
-        let order_str = order.status.to_string();
-        if order.status == order::Status::Completed {
+        let order_model = order.clone().try_into_model().unwrap();
+        let order_str = order_model.status.to_string();
+        if order.status == Set(order::Status::Completed) {
             let order_id_clone = order_id.clone();
             tokio::task::spawn_blocking(move || {
                 let _ = tokio::time::sleep(tokio::time::Duration::from_secs(60));

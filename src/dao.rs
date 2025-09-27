@@ -5,6 +5,8 @@ static CONN: OnceLock<Connection> = OnceLock::new();
 use anyhow::Result;
 use anyhow::anyhow;
 
+use sea_orm;
+
 use crate::cdk::CDK;
 use crate::order::Order;
 
