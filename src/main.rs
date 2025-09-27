@@ -197,7 +197,10 @@ async fn handle_webhook(request: Json<WebhookRequest>) -> Result<Json<WebhookRes
 async fn create_order(request: Json<order::OrderRequest>) -> Json<Order> {
     let order = Order::new(((request.price * 100.0).round()) as i32, request.plan_id);
 
-    info!("Order {} created with plan {}, price {}", order.uuid, request.plan_id, request.price);
+    info!(
+        "Order {} created with plan {}, price {}",
+        order.uuid, request.plan_id, request.price
+    );
 
     ORDER_MAP.insert(order.uuid.to_string(), (order.clone(), Instant::now()));
 
@@ -270,6 +273,11 @@ async fn main() {
         )
         .with(tracing_subscriber::fmt::layer().without_time())
         .init();
+
+    let path = std::path::Path::new("./data/");
+    if path.exists() == false {
+        std::fs::create_dir_all(path).expect("Failed to create data directory");
+    }
 
     dao::init_db().await.expect("Failed to initialize database");
 

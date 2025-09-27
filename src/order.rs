@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     cdk::CDK,
-    plan::{self, Plan, get_plan_by_id},
+    plan::{Plan, get_plan_by_id},
 };
 
 #[derive(Debug, Clone, Copy, Serialize, PartialEq)]

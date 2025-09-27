@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::sync::OnceLock;
 use tokio_rusqlite::{Connection, params};
 
@@ -10,7 +11,7 @@ use crate::order::Order;
 
 pub async fn init_db() -> Result<()> {
     // Open the connection asynchronously first
-    let conn = Connection::open("./chinpay.db").await?;
+    let conn = Connection::open("./data/chinpay.db").await?;
     let _result = conn
         .call(|conn| {
             Ok(conn.execute_batch(
@@ -88,32 +89,32 @@ pub async fn insert_cdk(uuid: String, cdk: CDK) -> Result<()> {
 
 pub async fn query_cdk_from_uuid(uuid: String) -> Result<Option<CDK>> {
     let conn = get_conn()?;
-    
+
     let result = conn
         .call(move |conn| {
             let mut stmt = conn.prepare("SELECT cdk, plan FROM `cdk` WHERE `uuid` = ?1")?;
             let mut rows = stmt.query(params![uuid])?;
-            
+
             if let Some(row) = rows.next()? {
                 let cdk_str: String = row.get(0)?;
                 let plan_id: i32 = row.get(1)?;
-                
+
                 // Get the plan from the global PLANS map
                 let plan = crate::plan::get_plan_by_id(plan_id);
-                
+
                 let cdk = CDK {
                     cdk: cdk_str,
                     used_by: None, // We don't fetch this field as it's not needed for this use case
                     plan,
                 };
-                
+
                 Ok(Some(cdk))
             } else {
                 Ok(None)
             }
         })
         .await?;
-        
+
     Ok(result)
 }
 
